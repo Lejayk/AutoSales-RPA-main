@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from src.infrastructure.notifier import build_summary_text, send_whatsapp_report
+from src.infrastructure.notifier import (
+    build_summary_text,
+    send_whatsapp_report,
+    validate_media_url,
+)
 
 
 class _FakeMessage:
@@ -65,3 +69,35 @@ def test_send_whatsapp_report_success_with_mock_client(monkeypatch: pytest.Monke
         media_url="https://example.com/dashboard.png",
     )
     assert sid == "SM_TEST_123"
+
+
+def test_send_whatsapp_report_raises_if_numbers_not_whatsapp_e164(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC_TEST")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "TOKEN_TEST")
+    monkeypatch.setenv("TWILIO_FROM", "+14155238886")
+    monkeypatch.setenv("TWILIO_TO", "whatsapp:+51999999999")
+    monkeypatch.setattr("src.infrastructure.notifier.Client", _FakeClient)
+
+    with pytest.raises(EnvironmentError):
+        send_whatsapp_report("Resumen", Path("dashboard.png"))
+
+
+@pytest.mark.parametrize(
+    "media_url",
+    [
+        "http://example.com/dashboard.png",
+        "https://localhost/dashboard.png",
+        "https://127.0.0.1/dashboard.png",
+        "https://192.168.1.20/dashboard.png",
+    ],
+)
+def test_validate_media_url_rejects_non_public_or_non_https(media_url: str) -> None:
+    with pytest.raises(ValueError):
+        validate_media_url(media_url)
+
+
+def test_validate_media_url_accepts_public_https_domain() -> None:
+    url = "https://example.com/dashboard.png"
+    assert validate_media_url(url) == url

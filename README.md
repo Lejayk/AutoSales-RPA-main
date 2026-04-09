@@ -81,7 +81,7 @@ El dashboard se guarda en `output/dashboard_resumen.png` sin mostrar ventana eme
 
 - Python 3.9+
 - Cuenta Twilio con número habilitado para WhatsApp Sandbox
-- Archivo `Ventas Fundamentos.xlsx` ubicado en `data/`
+- Archivo Excel fuente con hojas `Ventas` y `Vehículos` (ruta configurable con `DATA_FILE_PATH`)
 
 ---
 
@@ -114,7 +114,13 @@ TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_FROM=whatsapp:+14155238886
 TWILIO_TO=whatsapp:+51999999999
+DATA_FILE_PATH=data/Ventas Fundamentos.xlsx
+SHEET_VENTAS=Ventas
+SHEET_VEHICULOS=Vehículos
 ```
+
+> `DATA_FILE_PATH` puede ser relativo al root del proyecto o una ruta absoluta.
+> Si tu Excel usa hojas con otros nombres, configurá `SHEET_VENTAS` y `SHEET_VEHICULOS`.
 
 ---
 
@@ -162,9 +168,11 @@ pytest tests/infrastructure/test_notifier.py -q
 
 ## Qué te falta para que quede 100% funcional
 
-1. **Archivo fuente real** en `data/Ventas Fundamentos.xlsx` con hojas:
-   - `Ventas`
-   - `Vehículos`
+1. **Archivo fuente real** con hojas:
+   - `Ventas` / `Vehículos` por defecto
+   - o los nombres definidos en `SHEET_VENTAS` y `SHEET_VEHICULOS`
+   - Por defecto se usa `data/Ventas Fundamentos.xlsx`
+   - Si tu archivo tiene otro nombre/ruta, seteá `DATA_FILE_PATH` en `.env`
 2. **Variables de entorno en `.env`**:
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`

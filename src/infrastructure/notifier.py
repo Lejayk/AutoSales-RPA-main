@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+import ipaddress
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from twilio.base.exceptions import TwilioRestException
@@ -15,6 +18,8 @@ if TYPE_CHECKING:
     import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+WHATSAPP_E164_RE = re.compile(r"^whatsapp:\+[1-9]\d{7,14}$")
 
 load_dotenv()
 
@@ -31,6 +36,40 @@ def _get_required_env(var_name: str) -> str:
             f"Required environment variable '{var_name}' is missing."
         )
     return value
+
+
+def _validate_whatsapp_e164(var_name: str, value: str) -> str:
+    """Validate WhatsApp number format (whatsapp:+E.164)."""
+    if not WHATSAPP_E164_RE.match(value):
+        raise EnvironmentError(
+            f"Environment variable '{var_name}' must use format 'whatsapp:+<E.164>'."
+        )
+    return value
+
+
+def validate_media_url(media_url: str) -> str:
+    """Validate Twilio media URL is public and HTTPS.
+
+    Twilio fetches media from external servers, so localhost/private addresses
+    and non-HTTPS URLs are rejected.
+    """
+    parsed = urlparse(media_url)
+    if parsed.scheme.lower() != "https" or not parsed.netloc:
+        raise ValueError("media_url must be an HTTPS public URL.")
+
+    host = (parsed.hostname or "").strip().lower()
+    if not host or host == "localhost":
+        raise ValueError("media_url host must be publicly reachable (not localhost).")
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return media_url
+
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        raise ValueError("media_url host must be a public IP/domain.")
+
+    return media_url
 
 
 def build_summary_text(
@@ -75,8 +114,8 @@ def send_whatsapp_report(
     """
     account_sid = _get_required_env("TWILIO_ACCOUNT_SID")
     auth_token = _get_required_env("TWILIO_AUTH_TOKEN")
-    from_number = _get_required_env("TWILIO_FROM")
-    to_number = _get_required_env("TWILIO_TO")
+    from_number = _validate_whatsapp_e164("TWILIO_FROM", _get_required_env("TWILIO_FROM"))
+    to_number = _validate_whatsapp_e164("TWILIO_TO", _get_required_env("TWILIO_TO"))
 
     dashboard = Path(dashboard_path)
     logger.info("Sending WhatsApp report to %s with dashboard %s", to_number, dashboard.name)
@@ -89,6 +128,7 @@ def send_whatsapp_report(
         "body": summary_text,
     }
     if media_url:
+        validate_media_url(media_url)
         payload["media_url"] = [media_url]
 
     try:
